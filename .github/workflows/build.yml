@@ -1,0 +1,50 @@
+name: Verificar StudyMind AI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extrair o projeto
+        run: unzip -q projeto.zip -d src
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências
+        working-directory: src/StudyMind
+        run: npm install --no-audit --no-fund
+
+      - name: Conferir sintaxe de todos os arquivos
+        working-directory: src/StudyMind
+        run: npm run check
+
+      - name: Rodar testes
+        working-directory: src/StudyMind
+        run: npm test
+
+      - name: Subir o servidor e testar a resposta
+        working-directory: src/StudyMind
+        env:
+          NODE_ENV: development
+          PORT: 3100
+          BASE_URL: http://localhost:3100
+          DB_PATH: ./data/ci.db
+        run: |
+          node src/server.js &
+          SERVER_PID=$!
+          sleep 4
+          curl -fsS http://localhost:3100/api/health
+          curl -fsS http://localhost:3100/api/config
+          curl -fsS http://localhost:3100/ | grep -q "StudyMind AI"
+          kill $SERVER_PID
+
+      - name: Construir a imagem Docker
+        working-directory: src/StudyMind
+        run: docker build -t studymind-ai .
